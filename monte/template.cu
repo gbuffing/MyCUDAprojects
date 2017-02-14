@@ -19,17 +19,14 @@
 // declaration, forward
 void pi(int argc, char **argv);
 
-extern "C"
-void computeGold(float *reference, float *idata, const unsigned int len);
 
-////////////////////////////////////////////////////////////////////////////////
 #define RANDOM_MAX 100
  
 __global__ void random(int *result)  {
     curandState_t state;
 
     curand_init(547, 
-                745+blockIdx.x, /*sequence number is only important with multiple cores */
+                745+threadIdx.x, /*sequence number is only important with multiple cores */
                 1, /*offset is how much extra we advance in the sequence for each call, can be 0 */
                 &state);
 
@@ -41,7 +38,7 @@ __global__ void random(int *result)  {
     tmp = curand(&state) % RANDOM_MAX;
     result[1] = tmp;  */
 
-    result[blockIdx.x] = tmp;
+    result[threadIdx.x] = tmp;
 }
 
 __global__ void roll(int n, int *hits, int *throws)  {
@@ -98,7 +95,7 @@ void pi(int argc, char **argv)
     int *gpu_x;
     cudaMalloc((void **) &gpu_x, size);
 
-    random<<<n,1>>>(gpu_x);
+    random<<<1,n>>>(gpu_x);
 
 //    int x;
     int *x;
