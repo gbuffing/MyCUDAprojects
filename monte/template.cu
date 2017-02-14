@@ -21,6 +21,9 @@ void pi(int argc, char **argv);
 /********************** DEVICE CODE *********************/
 // some hints here
 // http://stackoverflow.com/questions/11832202/cuda-random-number-generating
+//
+// this is pretty good...look at multi core implementation at bottom
+// http://cs.umw.edu/~finlayson/class/fall16/cpsc425/notes/cuda-random.html
 
 __global__ void random(float *result)  {
 
