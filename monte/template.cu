@@ -32,6 +32,14 @@ void pi(int argc, char **argv);
 
 /********************** DEVICE CODE *********************/
 
+__global__ void init_random(unsigned int seed, curandState_t *states)  {
+    curand_init(seed, blockIdx.x, 0, &states[blockIdx.x]);
+}
+
+__global__ void randoms(curandState_t *states, double *numbers)  {
+    numbers[blockIdx.x] = curand_uniform_double(&states[blockIdx.x]);
+}
+
 __global__ void random(double *result)  {
 
     curandState_t state;  // need a local state for each thread, see cs.umw.edu
@@ -59,11 +67,32 @@ __global__ void threadBlockAdd(int *a, int *b, int *c, int n)  {
 void pi(int argc, char **argv)
 {
     printf("%s Starting...\n\n", argv[0]);
-
     // use command-line specified CUDA device, otherwise use device with highest Gflops/s
     int devID = findCudaDevice(argc, (const char **)argv);
 
+    int n = 16;
+    curandState_t *states;
+    cudaMalloc((void **) &states, n * sizeof(curandState_t));
+    init_random<<<n,1>>>(time(0), states);
 
+    double *host_nums = new double(n);
+    double *device_nums;
+    cudaMalloc((void **) &device_nums, n * sizeof(double));
+
+    randoms<<<n,1>>>(states, device_nums);
+
+    cudaMemcpy(host_nums, device_nums, n * sizeof(double), cudaMemcpyDeviceToHost);
+
+/*
+    for (int i=0; i<n; i++)  {
+        std::cout << host_nums[i] << "\n";
+    }
+*/
+    free(host_nums);
+    cudaFree(states);
+    cudaFree(device_nums);
+
+/*
     int n = 1024;
     double size = n * sizeof(double);
     double *gpu_x;
@@ -84,7 +113,7 @@ void pi(int argc, char **argv)
     std::cout << "\n" << total / double(n) << "\n";
 
     cudaFree(gpu_x);
-
+*/
 }
 
 
