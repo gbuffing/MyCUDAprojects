@@ -23,7 +23,20 @@ __global__ void init_random(unsigned int seed, curandState_t *states)  {
 }
 
 __global__ void randoms(curandState_t *states, double *numbers)  {
-    numbers[blockIdx.x] = curand_uniform_double(&states[blockIdx.x]);
+	numbers[blockIdx.x] = curand_uniform_double(&states[blockIdx.x]);
+}
+
+__global__ void monte(curandState_t *states, int *throws, int *hits)  {
+	double x, y;
+	x = curand_uniform_double(&states[blockIdx.x]);
+	y = curand_uniform_double(&states[blockIdx.x]);
+	throws[blockIdx.x] = 1;
+	if (sqrt(x*x + y*y) <= 1.)  {
+		hits[blockIdx.x] = 1;
+	}
+	else  {
+		hits[blockIdx.x] = 0;
+	}
 }
 
 /********************************* HOST CODE *********************************/
@@ -34,11 +47,35 @@ void pi(int argc, char **argv)
     // use command-line specified CUDA device, otherwise use device with highest Gflops/s
     int devID = findCudaDevice(argc, (const char **)argv);
 
-    int n = 1024;
+    int n = 4*1024;
     curandState_t *states;
     cudaMalloc((void **) &states, n * sizeof(curandState_t));
     init_random<<<n,1>>>(time(0), states);
 
+    int *hits = new int [n];
+    int *throws = new int [n];
+    int size = n * sizeof(int);
+    int *device_hits;
+    cudaMalloc((void **) &device_hits, size);
+    int *device_throws;
+    cudaMalloc((void **) &device_throws, size);
+
+    monte<<<n,1>>>(states, device_throws, device_hits);
+
+    cudaMemcpy(hits, device_hits, size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(throws, device_throws, size, cudaMemcpyDeviceToHost);
+
+    int total_hits = 0;
+    int total_throws = 0;
+    for (int i=0; i<n; i++)  {
+    	total_hits += hits[i];
+    	total_throws += throws[i];
+    }
+
+    double pie = 4. * double(total_hits) / double(total_throws);
+    std::cout << pie << "\n";
+
+/*
     double *host_nums;
     host_nums = new double [n];
     double *device_nums;
@@ -55,10 +92,13 @@ void pi(int argc, char **argv)
         total += host_nums[i];
     }
     std::cout << "\naverage = " << total / double(n) << "\n";
+*/
 
-    delete[] host_nums;
+    delete[] hits;
+    delete[] throws;
     cudaFree(states);
-    cudaFree(device_nums);
+    cudaFree(device_hits);
+    cudaFree(device_throws);
 }
 
 // Program main
