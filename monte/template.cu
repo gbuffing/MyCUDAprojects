@@ -22,21 +22,32 @@ __global__ void init_random(unsigned int seed, curandState_t *states)  {
     curand_init(seed, blockIdx.x, 0, &states[blockIdx.x]);
 }
 
-__global__ void randoms(curandState_t *states, double *numbers)  {
-	numbers[blockIdx.x] = curand_uniform_double(&states[blockIdx.x]);
+__global__ void init_monte(int *throws, int *hits)  {
+    throws[blockIdx.x] = hits[blockIdx.x] = 0;
 }
 
 __global__ void monte(curandState_t *states, int *throws, int *hits)  {
 	double x, y;
 	x = curand_uniform_double(&states[blockIdx.x]);
 	y = curand_uniform_double(&states[blockIdx.x]);
-	throws[blockIdx.x] = 1;
+	throws[blockIdx.x]++;
 	if (sqrt(x*x + y*y) <= 1.)  {
-		hits[blockIdx.x] = 1;
+		hits[blockIdx.x]++;
 	}
-	else  {
-		hits[blockIdx.x] = 0;
+}
+
+__global__ void monte2(curandState_t *states, int *throws, int *hits, int trials)  {
+	double x, y;
+
+	for (int i=0; i<trials; i++)  {
+		x = curand_uniform_double(&states[blockIdx.x]);
+		y = curand_uniform_double(&states[blockIdx.x]);
+		throws[blockIdx.x]++;
+		if (sqrt(x*x + y*y) <= 1.)  {
+			hits[blockIdx.x]++;
+		}
 	}
+
 }
 
 /********************************* HOST CODE *********************************/
@@ -47,10 +58,9 @@ void pi(int argc, char **argv)
     // use command-line specified CUDA device, otherwise use device with highest Gflops/s
     int devID = findCudaDevice(argc, (const char **)argv);
 
-    int n = 4*1024;
+    int n = 8*1024;
     curandState_t *states;
     cudaMalloc((void **) &states, n * sizeof(curandState_t));
-    init_random<<<n,1>>>(time(0), states);
 
     int *hits = new int [n];
     int *throws = new int [n];
@@ -60,7 +70,10 @@ void pi(int argc, char **argv)
     int *device_throws;
     cudaMalloc((void **) &device_throws, size);
 
-    monte<<<n,1>>>(states, device_throws, device_hits);
+    init_random<<<n,1>>>(time(0), states);
+    init_monte<<<n,1>>>(device_throws, device_hits);
+//    monte<<<n,1>>>(states, device_throws, device_hits);
+    monte2<<<n,1>>>(states, device_throws, device_hits, 1024);
 
     cudaMemcpy(hits, device_hits, size, cudaMemcpyDeviceToHost);
     cudaMemcpy(throws, device_throws, size, cudaMemcpyDeviceToHost);
@@ -73,7 +86,7 @@ void pi(int argc, char **argv)
     }
 
     double pie = 4. * double(total_hits) / double(total_throws);
-    std::cout << pie << "\n";
+    std::cout << pie << "    " << total_throws << "\n";
 
     delete[] hits;
     delete[] throws;
