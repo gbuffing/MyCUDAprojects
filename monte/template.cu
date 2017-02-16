@@ -75,25 +75,6 @@ void pi(int argc, char **argv)
     double pie = 4. * double(total_hits) / double(total_throws);
     std::cout << pie << "\n";
 
-/*
-    double *host_nums;
-    host_nums = new double [n];
-    double *device_nums;
-    int size = n * sizeof(double);
-    cudaMalloc((void **) &device_nums, size);
-
-    randoms<<<n,1>>>(states, device_nums);
-
-    cudaMemcpy(host_nums, device_nums, n * sizeof(double), cudaMemcpyDeviceToHost);
-
-    double total = 0;
-    for (int i=0; i<n; i++)  {
-        std::cout << i+1 << "    " << host_nums[i] << "\n";
-        total += host_nums[i];
-    }
-    std::cout << "\naverage = " << total / double(n) << "\n";
-*/
-
     delete[] hits;
     delete[] throws;
     cudaFree(states);
