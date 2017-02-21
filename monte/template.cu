@@ -71,10 +71,12 @@ void pi(int argc, char **argv)
     cudaMalloc((void **) &device_throws, size);
 
     init_random<<<n,1>>>(time(0), states);
+    cudaDeviceSynchronize();
     init_monte<<<n,1>>>(device_throws, device_hits);
 //    monte<<<n,1>>>(states, device_throws, device_hits);
     monte2<<<n,1>>>(states, device_throws, device_hits, 1024);
 
+    cudaDeviceSynchronize();
     cudaMemcpy(hits, device_hits, size, cudaMemcpyDeviceToHost);
     cudaMemcpy(throws, device_throws, size, cudaMemcpyDeviceToHost);
 
