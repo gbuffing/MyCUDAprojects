@@ -15,8 +15,8 @@
 
 /******************************** DEVICE CODE ********************************/
 
-__global__ void init_random(unsigned int seed, curandState_t *states)  {
-    curand_init(seed, blockIdx.x, 0, &states[blockIdx.x]);
+__global__ void init_random(unsigned int seed, curandState_t *state)  {
+    curand_init(seed, blockIdx.x, 0, &state[blockIdx.x]);
 }
 
 __global__ void init_monte(int *throws, int *hits)  {
@@ -55,9 +55,11 @@ void pi(int argc, char **argv)
     // use command-line specified CUDA device, otherwise use device with highest Gflops/s
     int devID = findCudaDevice(argc, (const char **)argv);
 
-    int n = 8*1024;
-    curandState_t *states;
-    cudaMallocManaged(&states, n * sizeof(curandState_t));
+    int n = 64;
+    curandState_t *state;
+    cudaMallocManaged(&state, n * sizeof(curandState_t));
+    unsigned int t = time(0);
+    init_random<<<n,1>>>(t, state);
 
     int size = n * sizeof(int);
     int *hits;
@@ -67,7 +69,6 @@ void pi(int argc, char **argv)
 
     *hits = *throws = 0;
 
-    init_random<<<n,1>>>(time(0), states);
 //    init_monte<<<n,1>>>(throws, hits);
 //    monte<<<n,1>>>(states, throws, hits);
 //    monte2<<<n,1>>>(states, throws, hits, 1024);
@@ -82,7 +83,7 @@ void pi(int argc, char **argv)
     double pie = 4. * double(total_hits) / double(total_throws);
     std::cout << pie << "    " << total_throws << "\n";
 
-    cudaFree(states);
+    cudaFree(state);
     cudaFree(hits);
     cudaFree(throws);
 }
