@@ -13,9 +13,6 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
-// declaration, forward
-void pi(int argc, char **argv);
-
 /******************************** DEVICE CODE ********************************/
 
 __global__ void init_random(unsigned int seed, curandState_t *states)  {
@@ -60,25 +57,19 @@ void pi(int argc, char **argv)
 
     int n = 8*1024;
     curandState_t *states;
-    cudaMalloc((void **) &states, n * sizeof(curandState_t));
+//    cudaMalloc((void **) &states, n * sizeof(curandState_t));
+    cudaMallocManaged(&states, n * sizeof(curandState_t));
 
     int *hits = new int [n];
     int *throws = new int [n];
     int size = n * sizeof(int);
-    int *device_hits;
-    cudaMalloc((void **) &device_hits, size);
-    int *device_throws;
-    cudaMalloc((void **) &device_throws, size);
+    cudaMallocManaged(&hits, size);
+    cudaMallocManaged(&throws, size);
 
     init_random<<<n,1>>>(time(0), states);
-    cudaDeviceSynchronize();
-    init_monte<<<n,1>>>(device_throws, device_hits);
+    init_monte<<<n,1>>>(throws, hits);
 //    monte<<<n,1>>>(states, device_throws, device_hits);
-    monte2<<<n,1>>>(states, device_throws, device_hits, 1024);
-
-    cudaDeviceSynchronize();
-    cudaMemcpy(hits, device_hits, size, cudaMemcpyDeviceToHost);
-    cudaMemcpy(throws, device_throws, size, cudaMemcpyDeviceToHost);
+    monte2<<<n,1>>>(states, throws, hits, 1024);
 
     int total_hits = 0;
     int total_throws = 0;
@@ -93,8 +84,8 @@ void pi(int argc, char **argv)
     delete[] hits;
     delete[] throws;
     cudaFree(states);
-    cudaFree(device_hits);
-    cudaFree(device_throws);
+    cudaFree(hits);
+    cudaFree(throws);
 }
 
 // Program main
