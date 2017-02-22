@@ -57,19 +57,20 @@ void pi(int argc, char **argv)
 
     int n = 8*1024;
     curandState_t *states;
-//    cudaMalloc((void **) &states, n * sizeof(curandState_t));
     cudaMallocManaged(&states, n * sizeof(curandState_t));
 
-    int *hits = new int [n];
-    int *throws = new int [n];
     int size = n * sizeof(int);
+    int *hits;
     cudaMallocManaged(&hits, size);
+    int *throws;
     cudaMallocManaged(&throws, size);
 
+    *hits = *throws = 0;
+
     init_random<<<n,1>>>(time(0), states);
-    init_monte<<<n,1>>>(throws, hits);
-//    monte<<<n,1>>>(states, device_throws, device_hits);
-    monte2<<<n,1>>>(states, throws, hits, 1024);
+//    init_monte<<<n,1>>>(throws, hits);
+//    monte<<<n,1>>>(states, throws, hits);
+//    monte2<<<n,1>>>(states, throws, hits, 1024);
 
     int total_hits = 0;
     int total_throws = 0;
@@ -81,8 +82,6 @@ void pi(int argc, char **argv)
     double pie = 4. * double(total_hits) / double(total_throws);
     std::cout << pie << "    " << total_throws << "\n";
 
-    delete[] hits;
-    delete[] throws;
     cudaFree(states);
     cudaFree(hits);
     cudaFree(throws);
