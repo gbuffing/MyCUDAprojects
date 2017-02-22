@@ -55,9 +55,12 @@ void pi(int argc, char **argv)
     // use command-line specified CUDA device, otherwise use device with highest Gflops/s
     int devID = findCudaDevice(argc, (const char **)argv);
 
-    int n = 64;
+    int n = 16 * 256;
     curandState_t *state;
-    cudaMallocManaged(&state, n * sizeof(curandState_t));
+//    cudaMallocManaged(&state, n * sizeof(curandState_t));
+    cudaMalloc((void **) &state, n * sizeof(curandState_t));
+   
+
     unsigned int t = time(0);
     init_random<<<n,1>>>(t, state);
 
@@ -71,7 +74,7 @@ void pi(int argc, char **argv)
 
 //    init_monte<<<n,1>>>(throws, hits);
 //    monte<<<n,1>>>(states, throws, hits);
-//    monte2<<<n,1>>>(states, throws, hits, 1024);
+    monte2<<<n,1>>>(state, throws, hits, 256);
 
     int total_hits = 0;
     int total_throws = 0;
