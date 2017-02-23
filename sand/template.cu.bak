@@ -1,39 +1,47 @@
-////////////////////////////////////////////////////////////////////////////
-//
-// Copyright 1993-2015 NVIDIA Corporation.  All rights reserved.
-//
-// Please refer to the NVIDIA end user license agreement (EULA) associated
-// with this source code for terms and conditions that govern your use of
-// this software. Any use, reproduction, disclosure, or distribution of
-// this software and related documentation outside the terms of the EULA
-// is strictly prohibited.
-//
-////////////////////////////////////////////////////////////////////////////
-
-/* Template project which demonstrates the basics on how to setup a project
-* example application.
-* Host code.
-*/
+// pointer to void
 
 // includes, system
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <iostream>
 
 // includes CUDA
 #include <cuda_runtime.h>
+
+// random number support
+#include <curand.h>
+#include <curand_kernel.h>
 
 // includes, project
 #include <helper_cuda.h>
 #include <helper_functions.h> // helper functions for SDK examples
 
-////////////////////////////////////////////////////////////////////////////////
-// declaration, forward
+// prototypes
 void runTest(int argc, char **argv);
 
 extern "C"
-void computeGold(float *reference, float *idata, const unsigned int len);
+void computeGold(double *reference, double *idata, const unsigned int len);
+
+// yeah from http://cs.umw.edu/~finlayson/class/fall16/cpsc425/notes/cuda-random.html
+#define fuknMAX 100
+
+/* this GPU kernel function calculates a random number and stores it in the parameter */
+__global__ void random(int* result) {
+  /* CUDA's random number library uses curandState_t to keep track of the seed value
+     we will store a random state for every thread  */
+  curandState_t state;
+
+  /* we have to initialize the state */
+  curand_init(0, /* the seed controls the sequence of random values that are produced */
+              0, /* the sequence number is only important with multiple cores */
+              0, /* the offset is how much extra we advance in the sequence for each call, can be 0 */
+              &state);
+
+  /* curand works like rand - except that it takes a state as a parameter */
+  *result = curand(&state) % fuknMAX;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //! Simple test kernel for device functionality
@@ -41,11 +49,11 @@ void computeGold(float *reference, float *idata, const unsigned int len);
 //! @param g_odata  output data in global memory
 ////////////////////////////////////////////////////////////////////////////////
 __global__ void
-testKernel(float *g_idata, float *g_odata)
+testKernel(double *g_idata, double *g_odata)
 {
     // shared memory
     // the size is determined by the host application
-    extern  __shared__  float sdata[];
+    extern  __shared__  double sdata[];
 
     // access thread id
     const unsigned int tid = threadIdx.x;
@@ -57,11 +65,22 @@ testKernel(float *g_idata, float *g_odata)
     __syncthreads();
 
     // perform some computations
-    sdata[tid] = (float) num_threads * sdata[tid];
+    sdata[tid] = (double) num_threads * sdata[tid];
     __syncthreads();
 
     // write data to global memory
     g_odata[tid] = sdata[tid];
+}
+
+
+///////////////////////// GET SOME ///////////////////////
+
+__global__ void monte()  {}
+
+__global__ void saxpy(int n, double a, double *x, double *y)
+{
+  int i = blockIdx.x*blockDim.x + threadIdx.x;
+  if (i < n) y[i] = a*x[i] + y[i];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,86 +95,48 @@ main(int argc, char **argv)
 ////////////////////////////////////////////////////////////////////////////////
 //! Run a simple test for CUDA
 ////////////////////////////////////////////////////////////////////////////////
-void
-runTest(int argc, char **argv)
-{
-    bool bTestResult = true;
 
-    printf("%s Starting...\n\n", argv[0]);
+void runTest(int argc, char **argv)  {
+    printf("%s Starting...\n", argv[0]);
 
     // use command-line specified CUDA device, otherwise use device with highest Gflops/s
     int devID = findCudaDevice(argc, (const char **)argv);
+    std::cout << "devID = " << devID << "\n"; 
 
-    StopWatchInterface *timer = 0;
-    sdkCreateTimer(&timer);
-    sdkStartTimer(&timer);
+    /* allocate an int on the GPU */
+    int* gpu_x;
+    cudaMalloc((void**) &gpu_x, sizeof(int));
 
-    unsigned int num_threads = 32;
-    unsigned int mem_size = sizeof(float) * num_threads;
+    /* invoke the GPU to initialize all of the random states */
+    random<<<1, 1>>>(gpu_x);
+  
+    /* copy the random number back */
+    int x;
+    cudaMemcpy(&x, gpu_x, sizeof(int), cudaMemcpyDeviceToHost);
 
-    // allocate host memory
-    float *h_idata = (float *) malloc(mem_size);
+    printf("Random number = %d.\n", x);
 
-    // initalize the memory
-    for (unsigned int i = 0; i < num_threads; ++i)
-    {
-        h_idata[i] = (float) i;
-    }
+    /* free the memory we allocated */
+    cudaFree(gpu_x);
 
-    // allocate device memory
-    float *d_idata;
-    checkCudaErrors(cudaMalloc((void **) &d_idata, mem_size));
-    // copy host memory to device
-    checkCudaErrors(cudaMemcpy(d_idata, h_idata, mem_size,
-                               cudaMemcpyHostToDevice));
+//    int N = 1<<20;   // leftwise bitshift same as N = 2**20 = 1048576
+//    double *x, *y, *d_x, *d_y;
+//    x = (double*)malloc(N*sizeof(double));
+//    y = (double*)malloc(N*sizeof(double));
 
-    // allocate device memory for result
-    float *d_odata;
-    checkCudaErrors(cudaMalloc((void **) &d_odata, mem_size));
+//    cudaMalloc(&d_x, N*sizeof(double)); 
+//    cudaMalloc(&d_y, N*sizeof(double));
 
-    // setup execution parameters
-    dim3  grid(1, 1, 1);
-    dim3  threads(num_threads, 1, 1);
 
-    // execute the kernel
-    testKernel<<< grid, threads, mem_size >>>(d_idata, d_odata);
 
-    // check if kernel execution generated and error
-    getLastCudaError("Kernel execution failed");
+    // Perform SAXPY on 1M elements
+//    saxpy<<<(N+255)/256, 256>>>(N, 2.0f, d_x, d_y);
 
-    // allocate mem for the result on host side
-    float *h_odata = (float *) malloc(mem_size);
-    // copy result from device to host
-    checkCudaErrors(cudaMemcpy(h_odata, d_odata, sizeof(float) * num_threads,
-                               cudaMemcpyDeviceToHost));
 
-    sdkStopTimer(&timer);
-    printf("Processing time: %f (ms)\n", sdkGetTimerValue(&timer));
-    sdkDeleteTimer(&timer);
 
-    // compute reference solution
-    float *reference = (float *) malloc(mem_size);
-    computeGold(reference, h_idata, num_threads);
 
-    // check result
-    if (checkCmdLineFlag(argc, (const char **) argv, "regression"))
-    {
-        // write file for regression test
-        sdkWriteFile("./data/regression.dat", h_odata, num_threads, 0.0f, false);
-    }
-    else
-    {
-        // custom output handling when no regression test running
-        // in this case check if the result is equivalent to the expected solution
-        bTestResult = compareData(reference, h_odata, num_threads, 0.0f, 0.0f);
-    }
-
-    // cleanup memory
-    free(h_idata);
-    free(h_odata);
-    free(reference);
-    checkCudaErrors(cudaFree(d_idata));
-    checkCudaErrors(cudaFree(d_odata));
-
-    exit(bTestResult ? EXIT_SUCCESS : EXIT_FAILURE);
+//    cudaFree(d_x);
+//    cudaFree(d_y);
+//    free(x);
+//    free(y);
 }
