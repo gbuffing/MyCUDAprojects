@@ -5,6 +5,7 @@
 #include <time.h>
 
 // includes CUDA
+#include <helper_cuda.h>  //needed for findCudaDevice()
 #include <curand.h>
 #include <curand_kernel.h>
 
@@ -12,7 +13,6 @@
 
 __global__ void init_random(int seed, curandState_t *state)  {
     curand_init(seed, blockIdx.x, 0, &state[blockIdx.x]);
-
 }
 
 __global__ void monte(curandState_t *states, int *throws, int *hits)  {
@@ -43,11 +43,11 @@ __global__ void monte2(curandState_t *states, int *throws, int *hits, int trials
 
 void pi(int argc, char **argv)
 {
-//    printf("%s Starting...\n\n", argv[0]);
+    printf("%s Starting...\n\n", argv[0]);
     // use command-line specified CUDA device, otherwise use device with highest Gflops/s
-//    int devID = findCudaDevice(argc, (const char **)argv);
+    int devID = findCudaDevice(argc, (const char **)argv);
 
-    int n = 32 * 256;
+    int n = 256 * 256;
     curandState_t *state;
     int state_size = n * sizeof(curandState_t);
     cudaMallocManaged(&state, state_size);
