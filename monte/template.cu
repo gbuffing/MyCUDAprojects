@@ -1,26 +1,18 @@
 // includes, system
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
+#include <iostream>
+#include <cmath>
 #include <cstdlib>
 #include <time.h>
 
 // includes CUDA
-#include <cuda_runtime.h>
-#include <helper_cuda.h>
-#include <helper_functions.h> // helper functions for SDK examples
 #include <curand.h>
 #include <curand_kernel.h>
 
 /******************************** DEVICE CODE ********************************/
 
-__global__ void init_random(unsigned int seed, curandState_t *state)  {
+__global__ void init_random(int seed, curandState_t *state)  {
     curand_init(seed, blockIdx.x, 0, &state[blockIdx.x]);
-}
 
-__global__ void init_monte(int *throws, int *hits)  {
-    throws[blockIdx.x] = hits[blockIdx.x] = 0;
 }
 
 __global__ void monte(curandState_t *states, int *throws, int *hits)  {
@@ -51,18 +43,19 @@ __global__ void monte2(curandState_t *states, int *throws, int *hits, int trials
 
 void pi(int argc, char **argv)
 {
-    printf("%s Starting...\n\n", argv[0]);
+//    printf("%s Starting...\n\n", argv[0]);
     // use command-line specified CUDA device, otherwise use device with highest Gflops/s
-    int devID = findCudaDevice(argc, (const char **)argv);
+//    int devID = findCudaDevice(argc, (const char **)argv);
 
-    int n = 16 * 256;
+    int n = 32 * 256;
     curandState_t *state;
-//    cudaMallocManaged(&state, n * sizeof(curandState_t));
-    cudaMalloc((void **) &state, n * sizeof(curandState_t));
-   
+    int state_size = n * sizeof(curandState_t);
+    cudaMallocManaged(&state, state_size);
 
     unsigned int t = time(0);
+    //t = 1234;
     init_random<<<n,1>>>(t, state);
+    cudaDeviceSynchronize();
 
     int size = n * sizeof(int);
     int *hits;
@@ -72,9 +65,10 @@ void pi(int argc, char **argv)
 
     *hits = *throws = 0;
 
-//    init_monte<<<n,1>>>(throws, hits);
-//    monte<<<n,1>>>(states, throws, hits);
-    monte2<<<n,1>>>(state, throws, hits, 256);
+    monte<<<n,1>>>(state, throws, hits);
+//    monte2<<<n,1>>>(state, throws, hits, 256);
+
+    cudaDeviceSynchronize();
 
     int total_hits = 0;
     int total_throws = 0;
@@ -95,31 +89,6 @@ void pi(int argc, char **argv)
 int main(int argc, char **argv) {
     pi(argc, argv);
 }
-
-/************************* stuff ***************************/
-/*
-__global__ void threadBlockAdd(int *a, int *b, int *c, int n)  {
-    int index = threadIdx.x + blockIdx.x * blockDim.x;
-    if (index < n)
-        c[index] = a[index] + b[index];
-}
-*/
-
-/*
- * __global__ void random(double *result)  {
-
-    curandState_t state;  // need a local state for each thread, see cs.umw.edu
-
-    curand_init(1234ULL, threadIdx.x, 0, &state);
-// arg1 -> the seed controls the sequence of random values that are produced
-// arg2 -> sequence number is only important with multiple cores
-// arg3 -> offset, how much extra we advance in the sequence for each call, can be 0
-// curand works like rand - except that it takes a state as a parameter
-
-    double tmp = curand_uniform_double(&state);
-    result[threadIdx.x] = tmp;
-}
-*/
 
 // some hints here
 // http://stackoverflow.com/questions/11832202/cuda-random-number-generating
