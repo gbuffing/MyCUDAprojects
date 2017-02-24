@@ -53,13 +53,15 @@ __global__ void monteThreadsBlocks(int n, curandState_t *states, int *throws, in
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 	int stride = blockDim.x * gridDim.x;
 	double x, y;
+	/*
 	x = curand_uniform_double(&states[index]);
 	y = curand_uniform_double(&states[index]);
 	throws[index]++;
 	if (sqrt(x*x + y*y) <= 1.)  {
 		hits[index]++;
 	}
-	/*
+	*/
+
 	for (int i = index; i < n; i += stride)  {
 		x = curand_uniform_double(&states[i]);
 		y = curand_uniform_double(&states[i]);
@@ -68,7 +70,7 @@ __global__ void monteThreadsBlocks(int n, curandState_t *states, int *throws, in
 			hits[i]++;
 		}
 	}
-	*/
+
 }
 
 /********************************* HOST CODE *********************************/
