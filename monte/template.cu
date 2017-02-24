@@ -47,7 +47,7 @@ void pi(int argc, char **argv)
     // use command-line specified CUDA device, otherwise use device with highest Gflops/s
     int devID = findCudaDevice(argc, (const char **)argv);
 
-    int n = 256 * 256;
+    int n = 256 * 1024;
     curandState_t *state;
     int state_size = n * sizeof(curandState_t);
     cudaMallocManaged(&state, state_size);
