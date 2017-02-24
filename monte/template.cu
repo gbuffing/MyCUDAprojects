@@ -25,6 +25,20 @@ __global__ void monte(curandState_t *states, int *throws, int *hits)  {
 	}
 }
 
+__global__ void init_random_threads(int seed, curandState_t *state)  {
+    curand_init(seed, threadIdx.x, 0, &state[threadIdx.x]);
+}
+
+__global__ void monteThreads(curandState_t *states, int *throws, int *hits)  {
+	double x, y;
+	x = curand_uniform_double(&states[threadIdx.x]);
+	y = curand_uniform_double(&states[threadIdx.x]);
+	throws[threadIdx.x]++;
+	if (sqrt(x*x + y*y) <= 1.)  {
+		hits[threadIdx.x]++;
+	}
+}
+
 __global__ void monte2(curandState_t *states, int *throws, int *hits, int trials)  {
 	double x, y;
 
@@ -54,7 +68,8 @@ void pi(int argc, char **argv)
 
     unsigned int t = time(0);
     //t = 1234;
-    init_random<<<n,1>>>(t, state);
+//    init_random<<<n,1>>>(t, state);
+    init_random_threads<<<1,n>>>(t, state);
     cudaDeviceSynchronize();
 
     int size = n * sizeof(int);
@@ -65,7 +80,8 @@ void pi(int argc, char **argv)
 
     *hits = *throws = 0;
 
-    monte<<<n,1>>>(state, throws, hits);
+//    monte<<<n,1>>>(state, throws, hits);
+      monteThreads<<<1,n>>>(state, throws, hits);
 //    monte2<<<n,1>>>(state, throws, hits, 256);
 
     cudaDeviceSynchronize();
